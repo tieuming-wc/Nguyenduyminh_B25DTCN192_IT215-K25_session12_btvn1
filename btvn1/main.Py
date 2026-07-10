@@ -1,15 +1,30 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
-from service import create_parking_slot, get_all_slots
+from model import ProductModel
+from service import ProductUpdate
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
-@app.post("/parking-slots")
-def add_slot(slot_data, db: Session = Depends(get_db)):
-    return create_parking_slot(db, slot_data)
+@app.put("/products/{product_id}")
+def update_product(
+    product_id: int, 
+    product_update: ProductUpdate, 
+    db: Session = Depends(get_db)
+):
+    product = db.query(ProductModel).filter(ProductModel.id == product_id).first()
 
-@app.get("/parking-slots")
-def list_slots(db: Session = Depends(get_db)):
-    return get_all_slots(db)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    product.name = product_update.name
+    product.price = product_update.price
+
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "message": "Product updated successfully",
+        "data": {"id": product.id, "name": product.name, "price": product.price}
+    }
